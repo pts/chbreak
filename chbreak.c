@@ -1,10 +1,11 @@
 /* A copy of the C source file on http://www.ouah.org/chroot-break.html
- * with minimal syntax fixes.
+ * with minimal syntax and C warning fixes.
  */
 
 #include <stdio.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -28,7 +29,6 @@
 
 int main() {
   int x;            /* Used to move up a directory tree */
-  int done=0;       /* Are we done yet ? */
 #ifdef NEED_FCHDIR
   int dir_fd;       /* File descriptor to directory */
 #endif
@@ -123,4 +123,5 @@ int main() {
     fprintf(stderr,"Failed to exec - %s\n",strerror(errno));
     exit(1);
   }
+  return 0;
 }
