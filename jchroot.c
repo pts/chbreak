@@ -272,7 +272,7 @@ static int step3(void *arg) {
 
       /* Mount! */
       if (snprintf(path, sizeof(path), "%s%s",
-		   config->target, mntent->mnt_dir) >= sizeof(path)) {
+		   config->target, mntent->mnt_dir) + 0U >= sizeof(path)) {
 	fprintf(stderr, "path too long: %s\n", mntent->mnt_dir);
 	free(mntdata);
 	return EXIT_FAILURE;
@@ -347,7 +347,7 @@ static int step1(struct config *config) {
     return EXIT_FAILURE;
   }
 
-  FILE *pid_file;
+  FILE *pid_file = NULL;
 
   if (config->pid_file) {
     pid_file = fopen(config->pid_file, "w");
