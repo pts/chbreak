@@ -1,4 +1,13 @@
 /*
+ * jchroot.c: a more flexible chroot for Linux in which the chdir("..")
+ * break out technique doesn't work
+ *
+ * * Compile with: gcc -W -Wall -Wextra -Werror -s -Os -o jchroot jchroot.c
+ * * Also works with pts-xstatic:
+ *   xstatic gcc -DUSE_CLONE_FILES=0 -W -Wall -Wextra -Werror -s -Os -o jchroot jchroot.c
+ *
+ * Based on jchroot.c: https://github.com/vincentbernat/jchroot/blob/3ad09cca4879c27f7eef657b7fa1dd8b4f6aa47b/jchroot.c
+ *
  * Copyright (c) 2011 Vincent Bernat <bernat@luffy.cx>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
@@ -36,7 +45,43 @@
 #include <sys/syscall.h>
 
 #ifndef PATH_MAX
-# define PATH_MAX 4096
+#define PATH_MAX 4096
+#endif
+
+/* For compatibility with pts-xstatic. */
+#ifndef MS_REC
+#define MS_REC 16384
+#endif
+#ifndef MS_PRIVATE
+#define MS_PRIVATE (1<<18)
+#endif
+#ifndef MNT_DETACH
+#define MNT_DETACH 2
+#endif
+#ifndef CLONE_NEWPID
+#define CLONE_NEWPID 0x20000000
+#endif
+#ifndef CLONE_FILES
+#define CLONE_FILES 0x00000400
+#endif
+#ifndef CLONE_NEWIPC
+#define CLONE_NEWIPC 0x08000000
+#endif
+#ifndef CLONE_NEWUTS
+#define CLONE_NEWUTS 0x04000000
+#endif
+#ifndef CLONE_NEWUSER
+#define CLONE_NEWUSER 0x10000000
+#endif
+#ifndef CLONE_NEWNET
+#define CLONE_NEWNET 0x40000000
+#endif
+
+/* For pts-xstatic we need -DUSE_CLONE_FILES=0, because unshare is not
+ * available.
+ */
+#ifndef USE_CLONE_FILES
+#define USE_CLONE_FILES 1
 #endif
 
 struct config {
@@ -122,6 +167,19 @@ static int step6(struct config *config) {
 static int step5(struct config *config) {
   char *template = NULL;
   char *p = NULL;
+  struct stat st;
+
+  if (asprintf(&template, "%s/tmp", config->target) == -1) {
+    fprintf(stderr, "unable to allocate template directory: %m\n");
+    return EXIT_FAILURE;
+  }
+  if (0 != lstat(template, &st) || !S_ISDIR(st.st_mode)) {
+    fprintf(stderr, "Directory not found: %s\n", template);
+    free(template);
+    return EXIT_FAILURE;
+  }
+  free(template);
+
   if (mount("", "/", "", MS_PRIVATE | MS_REC, "") == -1) {
     fprintf(stderr, "unable to make current root private: %m\n");
     return EXIT_FAILURE;
@@ -218,9 +276,11 @@ static int step3(void *arg) {
   }
 
   close(config->pipe_fd[0]);
+#if USE_CLONE_FILES
   /* Make sure we have no handles shared with parent anymore,
    * these might be used to break out of the chroot */
   unshare(CLONE_FILES);
+#endif
 
   if (config->fstab) {
     struct mntent *mntent;
